@@ -1,70 +1,211 @@
 <!DOCTYPE html>
-<html>
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<title>Letters</title>
-	</head>
-	<body>
-		<h1>Letters: David</h1>
-		<p>We type as one</p>
-		<div id="output"></div>
-		<script>
-		  // find the #output element
-		  const outputEl = document.getElementById("output");
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gravitational Typing (Collisions)</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: radial-gradient(circle at center, #01030b 0%, #030718 100%);
+    overflow: hidden;
+    color: white;
+    font-family: "Inter", sans-serif;
+    user-select: none;
+    cursor: none;
+  }
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+  .hint {
+    position: fixed;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.7);
+    font-size: 14px;
+    pointer-events: none;
+    font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<canvas id="space"></canvas>
+<div class="hint">Type letters • pause >1s = new word • move mouse to attract • letters now collide!</div>
+<script>
+(() => {
+  const canvas = document.getElementById("space");
+  const ctx = canvas.getContext("2d");
+  let W, H, DPR = window.devicePixelRatio || 1;
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
 
-		// Utility: make an element, set a few attributes, append to #output
-		  function addDomElement(tag, attrs) {
-		    const el = document.createElement(tag);
-		    if (attrs) {
-		      for (const k in attrs) {
-		        if (k === "text") {
-		          el.textContent = attrs[k];
-		        } else {
-		          el.setAttribute(k, attrs[k]);
-		        }
-		      }
-		    }
-		    outputEl.appendChild(el);
-		    return el;
-		  }
+  const letters = [];
+  let mouse = {x: W/2, y: H/2, px: W/2, py: H/2, vx:0, vy:0};
+  let lastTime = performance.now();
+  let lastTyped = 0;
+  let typeX = W/2;
+  let typeY = H/2;
+  const fontSize = 42;
 
-			function playSound(url) {
-			  const audio = new Audio(url);
-			  audio.play();
-			}
-		  // Listen for keydown events
-		  
-		document.addEventListener("keydown", function(event) {
-		    console.log("Key pressed:", event.key);
-		    if (event.key === "Backspace") {
-		      if (outputEl.lastChild) {
-		        outputEl.removeChild(outputEl.lastChild);
-		      }
-		    } else if (event.key === "d" || event.key === "D") {
-		      addDomElement("span", { text: "BARK!" });
+  window.addEventListener("mousemove", e => {
+    mouse.px = mouse.x;
+    mouse.py = mouse.y;
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+    mouse.vx = mouse.x - mouse.px;
+    mouse.vy = mouse.y - mouse.py;
+  });
 
-			} else if (event.key === "c" || event.key === "C") {
-			  addDomElement("img", { 
-			    src: "https://media2.giphy.com/media/v1.Y2lkPTZjMDliOTUyeTcyNHM4b3Mya3pmczY5MDBldW4zcDE2dGFsYjFvdjBka2RuNGRvdiZlcD12MV9naWZzX3NlYXJjaCZjdT1n/3vcHdyb75qRIA/200w.gif" });
-		    
-		    } else if (event.key === "v" || event.key === "V") {
-		        addDomElement("video", {
-		       	  src: "https://i.imgur.com/Pj87n9Q.mp4",
-		          width: "300",
-		          height: "300",
-		          autoplay: "true",
-		          muted: "",
-		          controls: ""
-		      });
-		    
-			} else if (event.key === "s" || event.key === "S") {
-			  playSound("https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg");
-			  addDomElement("span", { text: "(sound played)" });
-			} else {
-		      addDomElement("span", { text: event.key });
-		    }
-		  });
-		</script>
-	</body>
+  window.addEventListener("keydown", e => {
+    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+      const now = performance.now();
+      const dt = (now - lastTyped) / 1000;
+      if (dt > 1) {
+        typeX = W/2;
+        typeY = H/2;
+      }
+      lastTyped = now;
+      createLetter(e.key);
+    } else if (e.key === "Backspace") {
+      letters.pop();
+      typeX -= fontSize * 0.6;
+    }
+  });
+
+  function createLetter(ch) {
+    letters.push({
+      char: ch,
+      x: typeX,
+      y: typeY,
+      vx: 0,
+      vy: 0,
+      size: fontSize,
+      radius: fontSize * 0.4
+    });
+    typeX += fontSize * 0.6;
+  }
+
+  function applyGravity(dt) {
+    const G = 400;
+    const radius = 200;
+    for (let l of letters) {
+      const dx = mouse.x - l.x;
+      const dy = mouse.y - l.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) + 0.001;
+      if (dist < radius) {
+        const strength = (1 - dist / radius) * 0.4;
+        const ax = dx * strength * dt * G / radius;
+        const ay = dy * strength * dt * G / radius;
+        l.vx += ax;
+        l.vy += ay;
+      }
+    }
+  }
+
+  function applyCollisions() {
+    const bounce = 0.6; // how bouncy letters are
+    for (let i = 0; i < letters.length; i++) {
+      for (let j = i + 1; j < letters.length; j++) {
+        const a = letters[i];
+        const b = letters[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const minDist = a.radius + b.radius;
+        if (dist < minDist && dist > 0.001) {
+          const overlap = 0.5 * (minDist - dist);
+
+          // normalize
+          const nx = dx / dist;
+          const ny = dy / dist;
+
+          // separate positions
+          a.x -= nx * overlap;
+          a.y -= ny * overlap;
+          b.x += nx * overlap;
+          b.y += ny * overlap;
+
+          // velocity swap (basic elastic collision)
+          const dvx = b.vx - a.vx;
+          const dvy = b.vy - a.vy;
+          const impact = dvx * nx + dvy * ny;
+          if (impact < 0) {
+            const impulse = -(1 + bounce) * impact / 2;
+            a.vx -= impulse * nx;
+            a.vy -= impulse * ny;
+            b.vx += impulse * nx;
+            b.vy += impulse * ny;
+          }
+        }
+      }
+    }
+  }
+
+  function update(dt) {
+    applyGravity(dt);
+    applyCollisions();
+    const damping = 0.98;
+    for (let l of letters) {
+      l.vx *= damping;
+      l.vy *= damping;
+      l.x += l.vx;
+      l.y += l.vy;
+      // keep inside screen
+      if (l.x < l.radius) { l.x = l.radius; l.vx *= -0.5; }
+      if (l.x > W - l.radius) { l.x = W - l.radius; l.vx *= -0.5; }
+      if (l.y < l.radius) { l.y = l.radius; l.vy *= -0.5; }
+      if (l.y > H - l.radius) { l.y = H - l.radius; l.vy *= -0.5; }
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = "rgba(2,3,10,0.3)";
+    ctx.fillRect(0,0,W,H);
+
+    // gravitational field glow
+    const grd = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 200);
+    grd.addColorStop(0, "rgba(255,255,255,0.1)");
+    grd.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, 300, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#fff";
+    for (let l of letters) {
+      ctx.font = `${l.size}px monospace`;
+      ctx.fillText(l.char, l.x, l.y);
+    }
+
+    // cursor planet
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, 5, 0, Math.PI*2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+  }
+
+  function loop(now) {
+    const dt = Math.min((now - lastTime)/1000, 0.033);
+    lastTime = now;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
 </html>
